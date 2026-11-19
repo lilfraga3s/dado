@@ -42,12 +42,15 @@ button:focus-visible,#cin:focus-visible{outline:3px solid var(--mut);outline-off
 .row{display:flex;gap:10px;margin-bottom:6px}
 #roll{height:60px;padding:0 40px;font-size:1.3rem;font-weight:700}
 #hbtn{height:60px;padding:0 18px;font-weight:600;background:var(--chip);color:var(--ink)}
+#vbtn{height:60px;width:56px;font-size:1.3rem;background:var(--chip);color:var(--ink);opacity:.55}
+#vbtn[aria-pressed="true"]{background:var(--btn);color:var(--btnt);opacity:1}
+#sig{position:fixed;top:calc(4px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);font-size:11px;opacity:.22;color:var(--ink);pointer-events:none;z-index:2}
 #n{min-width:2ch;text-align:center;font-size:1.3rem;font-weight:600}
-.h{position:fixed;width:72px;height:72px;opacity:0;background:transparent;border-radius:0;z-index:1}
-#h1{left:0;top:0;height:calc(72px + env(safe-area-inset-top,0px))}
-#h2{right:0;top:0;height:calc(72px + env(safe-area-inset-top,0px))}
-#h3{left:0;bottom:0;height:calc(72px + env(safe-area-inset-bottom,0px))}
-#h4{right:0;bottom:0;height:calc(72px + env(safe-area-inset-bottom,0px))}
+.h{position:fixed;width:56px;height:56px;opacity:0;background:transparent;border-radius:0;z-index:1}
+#h1{left:0;top:0;height:calc(56px + env(safe-area-inset-top,0px))}
+#h2{right:0;top:0;height:calc(56px + env(safe-area-inset-top,0px))}
+#h3{left:0;bottom:0;height:calc(56px + env(safe-area-inset-bottom,0px))}
+#h4{right:0;bottom:0;height:calc(56px + env(safe-area-inset-bottom,0px))}
 #hist{display:none;position:fixed;inset:0;z-index:10;background:var(--bg);flex-direction:column;padding:calc(18px + env(safe-area-inset-top,0px)) 18px calc(18px + env(safe-area-inset-bottom,0px));user-select:text;-webkit-user-select:text}
 #hist.on{display:flex}
 #hist header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
@@ -71,6 +74,7 @@ button:focus-visible,#cin:focus-visible{outline:3px solid var(--mut);outline-off
 <div class="h" id="h2" aria-hidden="true"></div>
 <div class="h" id="h3" aria-hidden="true"></div>
 <div class="h" id="h4" aria-hidden="true"></div>
+<div id="sig" aria-hidden="true"></div>
 <div id="sides" role="group" aria-label="Tipo de dado"></div>
 <div id="cust"><input id="cin" type="number" inputmode="numeric" min="2" max="1000000" placeholder="Ex.: 1000" aria-label="Número de lados"><button class="chip" id="cok" style="background:var(--btn);color:var(--btnt)">Usar</button></div>
 <div id="total">&nbsp;</div>
@@ -81,7 +85,7 @@ button:focus-visible,#cin:focus-visible{outline:3px solid var(--mut);outline-off
 <button class="step" id="plus" aria-label="Mais dados">+</button>
 </div>
 <div class="bar mod"><span>Modificador</span><button class="step" id="mminus" aria-label="Diminuir modificador">−</button><input id="min" type="number" inputmode="numeric" value="0" aria-label="Modificador"><button class="step" id="mplus" aria-label="Aumentar modificador">+</button></div>
-<div class="row"><button id="roll">Rolar</button><button id="hbtn">Histórico</button></div>
+<div class="row"><button id="roll">Rolar</button><button id="hbtn">Histórico</button><button id="vbtn" aria-label="Vibração do celular" aria-pressed="false">📳</button></div>
 <section id="hist" aria-label="Histórico de rolagens">
 <header><h2>Histórico de rolagens</h2><div><button class="sec" id="hclear">Limpar</button><button id="hclose">Fechar</button></div></header>
 <ul id="list"></ul>
@@ -90,6 +94,7 @@ button:focus-visible,#cin:focus-visible{outline:3px solid var(--mut);outline-off
 var P={1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
 var TYPES=[4,6,8,10,12,20,100];
 var sides=6,count=1,forced=0,busy=false,custom=false,hist=[],mod=0;
+var vibOn=false;try{vibOn=localStorage.getItem('dado-vib')==='on'}catch(e){}
 var tray=document.getElementById('tray'),total=document.getElementById('total'),sidesEl=document.getElementById('sides');
 try{var sv=localStorage.getItem('dado-hist');if(sv)hist=JSON.parse(sv)||[]}catch(e){hist=[]}
 function saveH(){try{localStorage.setItem('dado-hist',JSON.stringify(hist))}catch(e){}}
@@ -97,12 +102,12 @@ function rnd(){var a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%si
 function face(el,v){
 el.innerHTML='';el.setAttribute('aria-label','Dado: '+v);
 if(sides===6){for(var i=0;i<9;i++){if(P[v].indexOf(i)>-1){var p=document.createElement('div');p.className='pip';p.style.gridArea=(Math.floor(i/3)+1)+'/'+(i%3+1);el.appendChild(p)}}}
-else{var L=String(v).length;el.textContent=v;el.style.fontSize='calc(var(--s)*'+(L>=7?.15:L>=6?.17:L>=5?.2:L>=4?.24:L>=3?.28:.34)+')'}}
+else{var L=String(v).length;el.textContent=v;el.style.fontSize='calc(var(--s)*'+(L>=7?.16:L>=6?.19:L>=5?.22:L>=4?.28:L>=3?.34:.42)+')'}}
 function mk(v){var d=document.createElement('div');var c='die';if(sides!==6){c+=' x '+(TYPES.indexOf(sides)>-1?'s'+sides:'sc')}d.className=c;face(d,v);return d}
-function draw(vals){tray.innerHTML='';tray.style.setProperty('--s',(count>4?66:count>2?78:92)+'px');vals.forEach(function(v){tray.appendChild(mk(v))})}
+function draw(vals){tray.innerHTML='';tray.style.setProperty('--s',(count>6?68:count>4?82:count>2?100:count===2?124:150)+'px');vals.forEach(function(v){tray.appendChild(mk(v))})}
 function init(){var v=[];for(var i=0;i<count;i++)v.push(rnd());draw(v);total.innerHTML='&nbsp;'}
 function roll(){
-if(busy)return;busy=true;var target=forced;forced=0;
+if(busy)return;busy=true;var target=forced;forced=0;showSig();
 var els=tray.children;for(var i=0;i<els.length;i++)els[i].classList.add('go');
 var t=setInterval(function(){for(var i=0;i<els.length;i++)face(els[i],rnd())},80);
 setTimeout(function(){clearInterval(t);var vals=[],s=0;
@@ -110,13 +115,14 @@ for(var i=0;i<count;i++){var v=target||rnd();vals.push(v);s+=v}
 draw(vals);var m=mod;total.textContent=(count>1||m)?String(s+m):'';busy=false;
 hist.unshift({t:Date.now(),c:count,s:sides,v:vals,sum:s,m:m});if(hist.length>100)hist.length=100;saveH()},700)}
 function buzz(){
-try{if(!navigator.vibrate)return;
+try{if(!vibOn||!navigator.vibrate)return;
 if(forced===0){navigator.vibrate(600);return}
 var p=[],ds=String(forced).split('');
 ds.forEach(function(ch){var d=+ch;if(d===0){p.push(450,650)}else{for(var k=0;k<d;k++)p.push(100,k===d-1?650:110)}});
 navigator.vibrate(p)}catch(e){}}
-function bump(n){if(busy)return;forced=(forced+n>sides)?0:forced+n;buzz()}
-function setSides(s,isCustom){sides=s;custom=isCustom;forced=0;build();init()}
+function showSig(){document.getElementById('sig').textContent=forced?forced:''}
+function bump(n){if(busy)return;forced=(forced+n>sides)?0:forced+n;buzz();showSig()}
+function setSides(s,isCustom){sides=s;custom=isCustom;forced=0;showSig();build();init()}
 function build(){
 sidesEl.innerHTML='';
 TYPES.forEach(function(s){var b=document.createElement('button');b.className='chip';b.textContent='d'+s;b.setAttribute('aria-pressed',!custom&&s===sides);
@@ -145,6 +151,9 @@ document.getElementById('h1').onclick=function(){bump(1)};
 document.getElementById('h2').onclick=function(){bump(10)};
 document.getElementById('h3').onclick=function(){bump(100)};
 document.getElementById('h4').onclick=function(){bump(1000)};
+var vbtn=document.getElementById('vbtn');
+vbtn.setAttribute('aria-pressed',vibOn);
+vbtn.onclick=function(){vibOn=!vibOn;vbtn.setAttribute('aria-pressed',vibOn);try{localStorage.setItem('dado-vib',vibOn?'on':'off')}catch(e){}if(vibOn&&navigator.vibrate)navigator.vibrate(80)};
 var min=document.getElementById('min');
 function setMod(v){if(busy){min.value=mod;return}v=parseInt(v,10);if(isNaN(v))v=0;mod=Math.max(-1000000,Math.min(1000000,v));min.value=mod}
 min.oninput=function(){if(min.value===''||min.value==='-')return;setMod(min.value)};
