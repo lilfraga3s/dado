@@ -44,7 +44,27 @@ button:focus-visible,#cin:focus-visible{outline:3px solid var(--mut);outline-off
 #hbtn{height:60px;padding:0 18px;font-weight:600;background:var(--chip);color:var(--ink)}
 #vbtn{height:60px;width:56px;font-size:1.3rem;background:var(--chip);color:var(--ink);opacity:.55}
 #vbtn[aria-pressed="true"]{background:var(--btn);color:var(--btnt);opacity:1}
-#sig{position:fixed;top:calc(4px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);font-size:11px;opacity:.22;color:var(--ink);pointer-events:none;z-index:2}
+#omni{width:68px;height:68px;flex:none;cursor:pointer}
+#omni svg{width:100%;height:100%;display:block}
+.of{fill:#0c1512;stroke:#2b3d34;stroke-width:2}
+.of2{fill:#101c17;stroke:#2b3d34;stroke-width:1.5}
+.tk{stroke:#243229;stroke-width:3.2;stroke-linecap:round}
+.tk.on{stroke:#7CFF4A}
+.a{fill:#3c5448}
+.l2{stroke:#3c5448;stroke-width:2;fill:none}
+.e{fill:#0c1512}
+svg.live .a{fill:#7CFF4A}
+svg.live .l2{stroke:#7CFF4A}
+svg.dead .a{fill:#ff4d3d}
+svg.dead .l2{stroke:#ff4d3d}
+svg.dead .tk.on{stroke:#ff4d3d}
+svg.dead .of{stroke:#ff4d3d}
+#ring{transform-origin:50px 50px}
+#ring.spin{animation:spin .5s ease-out}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+svg.dead{animation:blink .22s 5}
+@keyframes blink{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){#ring.spin,svg.dead{animation:none}}
 #n{min-width:2ch;text-align:center;font-size:1.3rem;font-weight:600}
 .h{position:fixed;width:56px;height:56px;opacity:0;background:transparent;border-radius:0;z-index:1}
 #h1{left:0;top:0;height:calc(56px + env(safe-area-inset-top,0px))}
@@ -74,7 +94,7 @@ button:focus-visible,#cin:focus-visible{outline:3px solid var(--mut);outline-off
 <div class="h" id="h2" aria-hidden="true"></div>
 <div class="h" id="h3" aria-hidden="true"></div>
 <div class="h" id="h4" aria-hidden="true"></div>
-<div id="sig" aria-hidden="true"></div>
+<div id="omni" aria-hidden="true"></div>
 <div id="sides" role="group" aria-label="Tipo de dado"></div>
 <div id="cust"><input id="cin" type="number" inputmode="numeric" min="2" max="1000000" placeholder="Ex.: 1000" aria-label="Número de lados"><button class="chip" id="cok" style="background:var(--btn);color:var(--btnt)">Usar</button></div>
 <div id="total">&nbsp;</div>
@@ -120,8 +140,13 @@ if(forced===0){navigator.vibrate(600);return}
 var p=[],ds=String(forced).split('');
 ds.forEach(function(ch){var d=+ch;if(d===0){p.push(450,650)}else{for(var k=0;k<d;k++)p.push(100,k===d-1?650:110)}});
 navigator.vibrate(p)}catch(e){}}
-function showSig(){document.getElementById('sig').textContent=forced?forced:''}
-function bump(n){if(busy)return;forced=(forced+n>sides)?0:forced+n;buzz();showSig()}
+var omni=document.getElementById('omni'),tapN=0,deadT=null,tks=[];
+function alienSVG(n){var t=n%4,f=Math.floor(n/4)%5,e=n%3+1,h='';if(t===0)h='<ellipse class="a" cx="50" cy="52" rx="13" ry="15"/>';else if(t===1)h='<ellipse class="a" cx="50" cy="51" rx="9" ry="19"/>';else if(t===2)h='<polygon class="a" points="50,34 65,50 58,68 42,68 35,50"/>';else h='<rect class="a" x="37" y="37" width="26" height="28" rx="6"/>';if(f===1)h+='<polygon class="a" points="40,38 36,24 46,35"/><polygon class="a" points="60,38 64,24 54,35"/>';else if(f===2)h+='<line class="l2" x1="45" y1="36" x2="40" y2="24"/><line class="l2" x1="55" y1="36" x2="60" y2="24"/><circle class="a" cx="40" cy="23" r="2.5"/><circle class="a" cx="60" cy="23" r="2.5"/>';else if(f===3)h+='<polygon class="a" points="42,38 45,26 48,36"/><polygon class="a" points="47,36 50,23 53,36"/><polygon class="a" points="52,36 55,26 58,38"/>';else if(f===4)h+='<polygon class="a" points="36,50 24,44 36,60"/><polygon class="a" points="64,50 76,44 64,60"/>';var ex=e===1?[50]:e===2?[44,56]:[41,50,59];ex.forEach(function(x){h+='<ellipse class="e" cx="'+x+'" cy="50" rx="2.6" ry="3.4"/>'});return h}
+function omniInit(){var s='<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle class="of" cx="50" cy="50" r="47"/><g id="ring">';for(var q=0;q<4;q++){for(var i=0;i<9;i++){var a=(q*90+5+i*10)*Math.PI/180;s+='<line class="tk" x1="'+(50+33*Math.sin(a)).toFixed(1)+'" y1="'+(50-33*Math.cos(a)).toFixed(1)+'" x2="'+(50+42*Math.sin(a)).toFixed(1)+'" y2="'+(50-42*Math.cos(a)).toFixed(1)+'"/>'}}s+='</g><circle class="of2" cx="50" cy="50" r="27"/><g id="al">'+alienSVG(0)+'</g></svg>';omni.innerHTML=s;tks=omni.querySelectorAll('.tk');omniRender()}
+function omniRender(){var svg=omni.firstChild;if(!svg)return;for(var q=0;q<4;q++){var d=Math.floor(forced/Math.pow(10,q))%10;for(var i=0;i<9;i++){tks[q*9+i].setAttribute('class','tk'+(i<d?' on':''))}}svg.classList.toggle('live',forced>0)}
+function showSig(){omniRender()}
+function omniTap(over){var svg=omni.firstChild,ring=document.getElementById('ring');clearTimeout(deadT);svg.classList.remove('dead');ring.classList.remove('spin');void ring.getBoundingClientRect();ring.classList.add('spin');tapN++;document.getElementById('al').innerHTML=alienSVG(tapN);if(over){for(var i=0;i<tks.length;i++){tks[i].setAttribute('class','tk on')}svg.classList.add('live');svg.classList.add('dead');deadT=setTimeout(function(){svg.classList.remove('dead');omniRender()},1100)}else{omniRender()}}
+function bump(n){if(busy)return;var over=(forced+n>sides);forced=over?0:forced+n;buzz();omniTap(over)}
 function setSides(s,isCustom){sides=s;custom=isCustom;forced=0;showSig();build();init()}
 function build(){
 sidesEl.innerHTML='';
@@ -160,7 +185,7 @@ min.oninput=function(){if(min.value===''||min.value==='-')return;setMod(min.valu
 min.onchange=function(){setMod(min.value)};
 document.getElementById('mplus').onclick=function(){setMod(mod+1)};
 document.getElementById('mminus').onclick=function(){setMod(mod-1)};
-build();init();
+omni.onclick=function(){bump(1)};omniInit();build();init();
 if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
 </script>
 </body>
