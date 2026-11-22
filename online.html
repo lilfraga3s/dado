@@ -62,6 +62,15 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--mut);outline-of
 #npcn{flex:1 1 160px;max-width:240px}
 select{border:2px solid var(--line);background:var(--die);color:var(--pip);font:inherit;border-radius:12px;height:44px;padding:0 10px;max-width:220px}
 select:focus-visible{outline:3px solid var(--mut);outline-offset:3px}
+#music{width:100%;max-width:520px;color:var(--mut)}
+#music summary{cursor:pointer;padding:6px 0;text-align:center}
+#murl{flex:1 1 240px}
+#mplayer{width:100%;max-width:520px}
+#mplayer .ml{color:var(--mut);font-size:.95rem;margin:6px 0}
+#mplayer iframe{width:100%;border:0;border-radius:12px;display:block}
+#mplayer iframe.yt{aspect-ratio:16/9}
+#mplayer audio{width:100%}
+#mplayer a{display:inline-block;margin-top:8px;color:var(--mut);font-size:.9rem}
 </style>
 </head>
 <body>
@@ -86,6 +95,11 @@ select:focus-visible{outline:3px solid var(--mut);outline-offset:3px}
 <div class="npcrow"><label for="as">Rolar como</label><select id="as"></select><button class="chip" id="npcx">Remover</button></div>
 </details>
 <button id="roll">Rolar</button>
+<details id="music"><summary>Música da sala</summary>
+<div class="npcrow"><input id="murl" placeholder="Link do YouTube, Spotify ou .mp3" aria-label="Link da música" autocapitalize="none" autocomplete="off"></div>
+<div class="npcrow"><button class="chip" id="mgo" style="background:var(--btn);color:var(--btnt)">Tocar para todos</button><button class="chip" id="mstop">Parar</button></div>
+</details>
+<section id="mplayer"></section>
 <section id="feedwrap"><h2>Histórico da sala</h2><ul id="list"></ul></section>
 <script>
 var P={1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
@@ -146,6 +160,9 @@ var d;try{d=JSON.parse(m.message)}catch(e){return}
 if(!d||typeof d!=='object')return;
 var tms=(+m.time||0)*1000;
 if(d.k==='hi'){var pn=strip(d.n).slice(0,20);if(pn){players[pn]=Math.max(players[pn]||0,tms);renderPlayers()}return}
+if(d.k==='music'){var mid=strip(d.id).slice(0,24);if(!mid||musicSeen[mid])return;musicSeen[mid]=1;
+if(tms&&tms<musicT)return;if(tms)musicT=tms;
+setMusic(strip(d.u).slice(0,300),strip(d.n).slice(0,20),!!(mine[mid]||tms>=joinMs-5000));return}
 if(d.k!=='roll')return;
 var e=clean(d);if(!e||!e.id||seen[e.id])return;
 seen[e.id]=1;if(tms)e.t=tms;
@@ -190,6 +207,44 @@ $('gen').onclick=function(){var c='',a='abcdefghjkmnpqrstuvwxyz23456789';for(var
 $('copy').onclick=function(){var u=location.href;try{navigator.clipboard.writeText(u).then(function(){note('Convite copiado. Mande para seus amigos.')},function(){note(u)})}catch(e){note(u)}};
 try{$('nick').value=localStorage.getItem('dado-nick')||''}catch(e){}
 var hh=strip(location.hash.replace('#','')).toLowerCase().replace(/[^a-z0-9_-]/g,'');if(hh)$('code').value=hh;
+var musicT=0,musicSeen={};
+function parseMusic(u){
+var x;try{x=new URL(u)}catch(e){return null}
+if(x.protocol!=='https:')return null;
+var h=x.hostname.replace(/^www\./,'').replace(/^m\./,''),m,r=null;
+if(h==='youtu.be'){m=x.pathname.match(/^\/([A-Za-z0-9_-]{11})$/);if(m)r={t:'yt',id:m[1],list:''}}
+else if(h==='youtube.com'||h==='music.youtube.com'){
+var v=x.searchParams.get('v'),l=x.searchParams.get('list'),okL=l&&/^[A-Za-z0-9_-]{10,50}$/.test(l);
+if(v&&/^[A-Za-z0-9_-]{11}$/.test(v))r={t:'yt',id:v,list:okL?l:''};
+else{m=x.pathname.match(/^\/(?:shorts|embed|live)\/([A-Za-z0-9_-]{11})/);if(m)r={t:'yt',id:m[1],list:''};else if(okL)r={t:'ytl',list:l}}}
+else if(h==='open.spotify.com'){m=x.pathname.match(/^\/(?:intl-[a-z]{2}\/)?(track|album|playlist|episode|show|artist)\/([A-Za-z0-9]{10,30})/);if(m)r={t:'sp',k:m[1],id:m[2]}}
+if(!r)r=/\.(mp3|ogg|wav|m4a|aac|opus)$/i.test(x.pathname)?{t:'au'}:{t:'ln'};
+r.href=x.href;return r}
+function setMusic(u,by,live){
+var box=$('mplayer');box.innerHTML='';
+if(!u)return;
+var p=parseMusic(u);
+if(!p){var w=document.createElement('div');w.className='ml';w.textContent='Link de música inválido.';box.appendChild(w);return}
+var lab=document.createElement('div');lab.className='ml';lab.textContent='Música da sala'+(by?' — enviada por '+by:'');box.appendChild(lab);
+var el=null;
+if(p.t==='yt'||p.t==='ytl'){
+el=document.createElement('iframe');el.className='yt';
+el.src=p.t==='yt'?'https://www.youtube-nocookie.com/embed/'+p.id+'?rel=0'+(live?'&autoplay=1':'')+(p.list?'&list='+p.list:''):'https://www.youtube-nocookie.com/embed/videoseries?list='+p.list+(live?'&autoplay=1':'');
+el.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';el.setAttribute('allowfullscreen','')}
+else if(p.t==='sp'){
+el=document.createElement('iframe');el.src='https://open.spotify.com/embed/'+p.k+'/'+p.id;
+el.allow='autoplay; encrypted-media; clipboard-write; fullscreen';el.style.height=(p.k==='track'||p.k==='episode')?'152px':'352px'}
+else if(p.t==='au'){el=document.createElement('audio');el.controls=true;el.src=p.href;if(live)el.autoplay=true}
+if(el){if(el.tagName==='IFRAME'){el.referrerPolicy='strict-origin-when-cross-origin';el.title='Música da sala'}box.appendChild(el)}
+var a=document.createElement('a');a.href=p.href;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir o link original';box.appendChild(a)}
+function sendMusic(u){
+var id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+if(joined){mine[id]=1;post({k:'music',id:id,n:nick||'Eu',u:u}).catch(function(){note('Não consegui enviar a música para a sala.')})}
+else setMusic(u,'',true)}
+$('mgo').onclick=function(){var u=strip($('murl').value).trim().slice(0,300);if(!u)return;
+if(!parseMusic(u)){note('Esse link não parece válido. Use um link https do YouTube, Spotify ou um arquivo .mp3.');return}
+sendMusic(u);$('murl').value=''};
+$('mstop').onclick=function(){sendMusic('')};
 var npcs=[];try{npcs=JSON.parse(localStorage.getItem('dado-npcs')||'[]')||[]}catch(e){npcs=[]}
 npcs=npcs.map(function(n){return strip(n).slice(0,20)}).filter(Boolean).slice(0,20);
 function saveN(){try{localStorage.setItem('dado-npcs',JSON.stringify(npcs))}catch(e){}}
