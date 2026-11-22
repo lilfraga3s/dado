@@ -71,6 +71,8 @@ select:focus-visible{outline:3px solid var(--mut);outline-offset:3px}
 #mplayer iframe.yt{aspect-ratio:16/9}
 #mplayer audio{width:100%}
 #mplayer a{display:inline-block;margin-top:8px;color:var(--mut);font-size:.9rem}
+.hrow{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px}
+#feedwrap .hrow h2{margin:0}
 </style>
 </head>
 <body>
@@ -100,7 +102,7 @@ select:focus-visible{outline:3px solid var(--mut);outline-offset:3px}
 <div class="npcrow"><button class="chip" id="mgo" style="background:var(--btn);color:var(--btnt)">Tocar para todos</button><button class="chip" id="mstop">Parar</button></div>
 </details>
 <section id="mplayer"></section>
-<section id="feedwrap"><h2>Histórico da sala</h2><ul id="list"></ul></section>
+<section id="feedwrap"><div class="hrow"><h2>Histórico da sala</h2><button class="chip" id="hclear">Limpar histórico</button></div><ul id="list"></ul></section>
 <script>
 var P={1:[4],2:[0,8],3:[0,4,8],4:[0,2,6,8],5:[0,2,4,6,8],6:[0,2,3,5,6,8]};
 var TYPES=[4,6,8,10,12,20,100];
@@ -122,7 +124,7 @@ function line(e){var hm=e.m||0,sg=hm>0?' + ':' − ';return e.n+(e.p?' (NPC)':''
 function renderFeed(){
 var ul=$('list');ul.innerHTML='';
 if(!feed.length){var l=document.createElement('li');l.id='empty';l.textContent='Nenhuma rolagem ainda.';ul.appendChild(l)}
-feed.forEach(function(e){var li=document.createElement('li');var r=document.createElement('span');r.className='r';r.textContent=line(e);
+feed.forEach(function(e){var li=document.createElement('li');var r=document.createElement('span');r.className='r';r.textContent=e.sys?'Histórico apagado por '+e.n:line(e);
 var t=document.createElement('span');t.className='t';t.textContent=new Date(e.t).toLocaleTimeString('pt-BR');li.appendChild(r);li.appendChild(t);ul.appendChild(li)})}
 function addFeed(e){feed.unshift(e);if(feed.length>100)feed.length=100;renderFeed()}
 function enqueue(e){q.push(e);if(!busy)next()}
@@ -133,7 +135,7 @@ var ph=[];for(var i=0;i<e.c;i++)ph.push(1);draw(ph,e.s);
 var els=tray.children;for(var j=0;j<els.length;j++)els[j].classList.add('go');
 who.textContent=e.n+(e.p?' (NPC)':'')+' está rolando…';total.innerHTML='&nbsp;';
 var t=setInterval(function(){for(var k=0;k<els.length;k++)face(els[k],rndN(e.s),e.s)},80);
-setTimeout(function(){clearInterval(t);draw(e.v,e.s);total.textContent=(e.c>1||e.m)?String(e.sum+e.m):'';who.textContent=e.n+(e.p?' (NPC)':'')+' rolou';addFeed(e);next()},700)}
+setTimeout(function(){clearInterval(t);draw(e.v,e.s);total.textContent=(e.c>1||e.m)?String(e.sum+e.m):'';who.textContent=e.n+(e.p?' (NPC)':'')+' rolou';if(e.t>=clearT)addFeed(e);next()},700)}
 function clean(d){
 if(!d||typeof d!=='object')return null;
 var s=Math.floor(+d.s),c=Math.floor(+d.c),m=Math.floor(+d.m)||0;
@@ -163,9 +165,14 @@ if(d.k==='hi'){var pn=strip(d.n).slice(0,20);if(pn){players[pn]=Math.max(players
 if(d.k==='music'){var mid=strip(d.id).slice(0,24);if(!mid||musicSeen[mid])return;musicSeen[mid]=1;
 if(tms&&tms<musicT)return;if(tms)musicT=tms;
 setMusic(strip(d.u).slice(0,300),strip(d.n).slice(0,20),!!(mine[mid]||tms>=joinMs-5000));return}
+if(d.k==='clear'){var cid=strip(d.id).slice(0,24);if(!cid||seen[cid])return;seen[cid]=1;
+if(tms>clearT)clearT=tms;
+q=q.filter(function(x){return x.t>=clearT});
+feed=[{sys:1,n:strip(d.n).slice(0,20)||'Alguém',t:tms||Date.now(),id:cid}];renderFeed();return}
 if(d.k!=='roll')return;
 var e=clean(d);if(!e||!e.id||seen[e.id])return;
 seen[e.id]=1;if(tms)e.t=tms;
+if(tms&&tms<clearT)return;
 if(!e.p){players[e.n]=Math.max(players[e.n]||0,tms);renderPlayers()}
 if(mine[e.id]||tms>=joinMs-5000){enqueue(e)}
 else{feed.push(e);feed.sort(function(a,b){return b.t-a.t});if(feed.length>100)feed.length=100;renderFeed()}}
@@ -207,7 +214,7 @@ $('gen').onclick=function(){var c='',a='abcdefghjkmnpqrstuvwxyz23456789';for(var
 $('copy').onclick=function(){var u=location.href;try{navigator.clipboard.writeText(u).then(function(){note('Convite copiado. Mande para seus amigos.')},function(){note(u)})}catch(e){note(u)}};
 try{$('nick').value=localStorage.getItem('dado-nick')||''}catch(e){}
 var hh=strip(location.hash.replace('#','')).toLowerCase().replace(/[^a-z0-9_-]/g,'');if(hh)$('code').value=hh;
-var musicT=0,musicSeen={};
+var musicT=0,musicSeen={},clearT=0;
 function parseMusic(u){
 var x;try{x=new URL(u)}catch(e){return null}
 if(x.protocol!=='https:')return null;
@@ -245,6 +252,10 @@ $('mgo').onclick=function(){var u=strip($('murl').value).trim().slice(0,300);if(
 if(!parseMusic(u)){note('Esse link não parece válido. Use um link https do YouTube, Spotify ou um arquivo .mp3.');return}
 sendMusic(u);$('murl').value=''};
 $('mstop').onclick=function(){sendMusic('')};
+$('hclear').onclick=function(){
+if(!confirm('Apagar o histórico da sala? Isso apaga para todos que estão nela.'))return;
+if(joined){var id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);mine[id]=1;post({k:'clear',id:id,n:nick||'Eu'}).catch(function(){note('Não consegui apagar o histórico da sala.')})}
+else{feed=[];renderFeed()}};
 var npcs=[];try{npcs=JSON.parse(localStorage.getItem('dado-npcs')||'[]')||[]}catch(e){npcs=[]}
 npcs=npcs.map(function(n){return strip(n).slice(0,20)}).filter(Boolean).slice(0,20);
 function saveN(){try{localStorage.setItem('dado-npcs',JSON.stringify(npcs))}catch(e){}}
