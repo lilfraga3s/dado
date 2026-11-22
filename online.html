@@ -73,6 +73,18 @@ select:focus-visible{outline:3px solid var(--mut);outline-offset:3px}
 #mplayer a{display:inline-block;margin-top:8px;color:var(--mut);font-size:.9rem}
 .hrow{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px}
 #feedwrap .hrow h2{margin:0}
+#fichas{width:100%;max-width:520px;color:var(--mut)}
+#fichas summary{cursor:pointer;padding:6px 0;text-align:center}
+.fi{flex:1 1 150px;min-width:0}.fi.sm{flex:1 1 80px}
+.attrs{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
+.arow{display:flex;gap:6px}.arow input{min-width:0;width:50%;padding:0 8px}
+#fichas textarea{width:100%;min-height:90px;margin-top:8px;border:2px solid var(--line);background:var(--die);color:var(--pip);font:inherit;border-radius:12px;padding:10px;resize:vertical}
+#fichas textarea:focus-visible{outline:3px solid var(--mut);outline-offset:3px}
+.fh{font-size:.85rem;color:var(--mut);margin:8px 0;text-align:center}
+.card{border:2px solid var(--line);border-radius:12px;padding:10px;margin-top:8px;background:var(--chip);color:var(--ink);overflow-wrap:anywhere}
+.card .pre{white-space:pre-wrap;margin-top:6px}
+#finbox{width:100%;max-width:520px}
+#finbox h3{margin:6px 0 0;font-size:1rem}
 </style>
 </head>
 <body>
@@ -97,6 +109,23 @@ select:focus-visible{outline:3px solid var(--mut);outline-offset:3px}
 <div class="npcrow"><label for="as">Rolar como</label><select id="as"></select><button class="chip" id="npcx">Remover</button></div>
 </details>
 <button id="roll">Rolar</button>
+<details id="fichas"><summary>Fichas</summary>
+<div class="npcrow"><select id="fsel" aria-label="Escolher ficha"></select><button class="chip" id="fnew">Nova ficha</button><button class="chip" id="fdel">Excluir</button></div>
+<div class="npcrow"><button class="chip" id="fimp">Importar arquivo</button><button class="chip" id="fexp">Exportar ficha</button><input type="file" id="ffile" accept=".json,.txt,application/json,text/plain" hidden></div>
+<div id="fform" style="display:none">
+<div class="npcrow"><input id="f_name" class="fi" maxlength="40" placeholder="Nome do personagem" aria-label="Nome do personagem"><input id="f_cls" class="fi" maxlength="40" placeholder="Classe / raça" aria-label="Classe ou raça"></div>
+<div class="npcrow"><input id="f_lvl" class="fi sm" maxlength="10" placeholder="Nível" aria-label="Nível"><input id="f_hp" class="fi sm" maxlength="10" placeholder="PV atual" aria-label="PV atual"><input id="f_hpm" class="fi sm" maxlength="10" placeholder="PV máx." aria-label="PV máximo"></div>
+<div id="f_attrs" class="attrs"></div>
+<textarea id="f_notes" maxlength="1500" placeholder="Anotações, perícias, magias…" aria-label="Anotações"></textarea>
+<textarea id="f_inv" maxlength="1500" placeholder="Inventário" aria-label="Inventário"></textarea>
+<p class="fh">Esta ficha fica só neste aparelho. Ninguém na sala vê, a não ser que você compartilhe.</p>
+<div class="npcrow"><label for="fto">Compartilhar com</label><select id="fto"></select></div>
+<div class="npcrow"><label for="fdur">por</label><select id="fdur"><option value="5">5 minutos</option><option value="30">30 minutos</option><option value="60">1 hora</option><option value="180">3 horas</option></select><button class="chip" id="fshare" style="background:var(--btn);color:var(--btnt)">Compartilhar</button></div>
+</div>
+<p class="fh" id="fmy"></p>
+<div id="fshares"></div>
+</details>
+<section id="finbox"></section>
 <details id="music"><summary>Música da sala</summary>
 <div class="npcrow"><input id="murl" placeholder="Link do YouTube, Spotify ou .mp3" aria-label="Link da música" autocapitalize="none" autocomplete="off"></div>
 <div class="npcrow"><button class="chip" id="mgo" style="background:var(--btn);color:var(--btnt)">Tocar para todos</button><button class="chip" id="mstop">Parar</button></div>
@@ -161,7 +190,9 @@ if(!m||m.event!=='message')return;
 var d;try{d=JSON.parse(m.message)}catch(e){return}
 if(!d||typeof d!=='object')return;
 var tms=(+m.time||0)*1000;
-if(d.k==='hi'){var pn=strip(d.n).slice(0,20);if(pn){players[pn]=Math.max(players[pn]||0,tms);renderPlayers()}return}
+if(d.k==='hi'){var pn=strip(d.n).slice(0,20);if(pn){players[pn]=Math.max(players[pn]||0,tms);renderPlayers();if(typeof d.pk==='string')regKey(pn,d.pk,tms)}return}
+if(d.k==='sheet'){onSheet(d);return}
+if(d.k==='revoke'){onRevoke(d);return}
 if(d.k==='music'){var mid=strip(d.id).slice(0,24);if(!mid||musicSeen[mid])return;musicSeen[mid]=1;
 if(tms&&tms<musicT)return;if(tms)musicT=tms;
 setMusic(strip(d.u).slice(0,300),strip(d.n).slice(0,20),!!(mine[mid]||tms>=joinMs-5000));return}
@@ -190,7 +221,7 @@ joined=true;
 $('lobby').style.display='none';$('copy').style.display='inline-block';
 try{location.hash=code}catch(e){}
 note('Entrando na sala '+code+'…');
-post({k:'hi',n:nick}).catch(function(){})}
+keyReady.then(function(){var hf=function(){post({k:'hi',n:nick,pk:me.pub}).catch(function(){})};hf();clearInterval(hiT);hiT=setInterval(hf,20*60000)})}
 function build(){
 sidesEl.innerHTML='';
 TYPES.forEach(function(s){var b=document.createElement('button');b.className='chip';b.textContent='d'+s;b.setAttribute('aria-pressed',!custom&&s===sides);
@@ -264,6 +295,141 @@ npcs.forEach(function(n,i){var p=document.createElement('option');p.value=String
 sl.value=(cur!==''&&+cur<npcs.length)?cur:''}
 $('npcb').onclick=function(){var n=strip($('npcn').value).trim().slice(0,20);if(!n)return;if(npcs.indexOf(n)<0&&npcs.length<20)npcs.push(n);$('npcn').value='';saveN();renderAs();var i=npcs.indexOf(n);if(i>-1)$('as').value=String(i)};
 $('npcx').onclick=function(){var v=$('as').value;if(v==='')return;npcs.splice(+v,1);saveN();renderAs()};
+var me={priv:null,pub:'',fp:''},keys={},sheets=[],shares=[],inbox={},revoked={},cur='',hiT=null;
+var FPN=['FOR','DES','CON','INT','SAB','CAR'];
+function stripT(s){return String(s==null?'':s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g,'')}
+function rid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function b64(u){var t='';for(var i=0;i<u.length;i++)t+=String.fromCharCode(u[i]);return btoa(t)}
+function unb64(t){var b=atob(t),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return u}
+function mins(exp){return Math.max(1,Math.ceil((exp-Date.now())/60000))}
+async function fpOf(pub){var h=new Uint8Array(await crypto.subtle.digest('SHA-256',unb64(pub)));var x='';for(var i=0;i<4;i++)x+=('0'+h[i].toString(16)).slice(-2);return x}
+function fpFmt(f){return f.slice(0,4)+'-'+f.slice(4)}
+async function initKey(){
+var P256={name:'ECDH',namedCurve:'P-256'};
+try{var sv=JSON.parse(localStorage.getItem('dado-key')||'null');if(sv&&sv.priv&&sv.pub){me.priv=await crypto.subtle.importKey('jwk',sv.priv,P256,false,['deriveKey']);me.pub=sv.pub}}catch(e){me.priv=null}
+if(!me.priv){var kp=await crypto.subtle.generateKey(P256,true,['deriveKey']);var jwk=await crypto.subtle.exportKey('jwk',kp.privateKey);me.pub=b64(new Uint8Array(await crypto.subtle.exportKey('raw',kp.publicKey)));me.priv=kp.privateKey;try{localStorage.setItem('dado-key',JSON.stringify({priv:jwk,pub:me.pub}))}catch(e){}}
+me.fp=await fpOf(me.pub);
+$('fmy').textContent='Seu código de verificação: '+fpFmt(me.fp)+'. Antes de compartilhar, confira com a pessoa se o código dela bate.'}
+var keyReady=(window.crypto&&crypto.subtle)?initKey().catch(function(){}):Promise.resolve();
+async function aesFor(pub){var pk=await crypto.subtle.importKey('raw',unb64(pub),{name:'ECDH',namedCurve:'P-256'},false,[]);return crypto.subtle.deriveKey({name:'ECDH',public:pk},me.priv,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+async function seal(pub,data){var key=await aesFor(pub),iv=crypto.getRandomValues(new Uint8Array(12));var ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,data));return{iv:b64(iv),ct:b64(ct)}}
+async function openB(spk,iv,ct){var key=await aesFor(spk);return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(iv)},key,unb64(ct)))}
+async function gz(str){var cs=new CompressionStream('gzip'),w=cs.writable.getWriter();w.write(new TextEncoder().encode(str));w.close();return new Uint8Array(await new Response(cs.readable).arrayBuffer())}
+async function ungz(buf){var ds=new DecompressionStream('gzip'),w=ds.writable.getWriter();w.write(buf);w.close();return new TextDecoder().decode(await new Response(ds.readable).arrayBuffer())}
+function cleanSheet(x){x=x||{};var at=Array.isArray(x.attrs)?x.attrs:[],a=[];
+for(var i=0;i<6;i++){var y=at[i]||{};a.push({l:strip(y.l!=null?y.l:FPN[i]).slice(0,8),v:strip(y.v).slice(0,8)})}
+return{id:strip(x.id).slice(0,24),name:strip(x.name).slice(0,40),cls:strip(x.cls).slice(0,40),lvl:strip(x.lvl).slice(0,10),hp:strip(x.hp).slice(0,10),hpm:strip(x.hpm).slice(0,10),attrs:a,notes:stripT(x.notes).slice(0,1500),inv:stripT(x.inv).slice(0,1500)}}
+async function regKey(n,pk,t){if(typeof pk!=='string'||pk.length!==88)return;try{await keyReady;var f=await fpOf(pk);if(f===me.fp)return;keys[f]={n:n,pk:pk,t:t||Date.now()};renderTo()}catch(e){}}
+function renderTo(){var sl=$('fto'),cur2=sl.value;sl.innerHTML='';
+Object.keys(keys).sort(function(a,b){return keys[b].t-keys[a].t}).forEach(function(f){var o=document.createElement('option');o.value=f;o.textContent=keys[f].n+' · '+fpFmt(f);sl.appendChild(o)});
+if(cur2&&keys[cur2])sl.value=cur2}
+async function onSheet(d){
+try{await keyReady;var id=strip(d.id).slice(0,24);
+if(!me.fp||d.to!==me.fp||!id||revoked[id]||inbox[id]||typeof d.spk!=='string')return;
+var buf=await openB(d.spk,d.iv,d.ct);
+var o=JSON.parse(d.z?await ungz(buf):new TextDecoder().decode(buf));
+if(!o||o.sid!==id||!(+o.exp>Date.now())||revoked[id])return;
+inbox[id]={sid:id,from:strip(d.n).slice(0,20)||'Alguém',fp:await fpOf(d.spk),exp:Math.min(+o.exp,Date.now()+4*3600000),s:cleanSheet(o.s)};
+renderInbox()}catch(e){}}
+async function onRevoke(d){
+try{await keyReady;var id=strip(d.id).slice(0,24);
+if(!me.fp||d.to!==me.fp||!id||typeof d.spk!=='string')return;
+var t=new TextDecoder().decode(await openB(d.spk,d.iv,d.ct));
+if(t==='revoke:'+id){revoked[id]=1;if(inbox[id]){delete inbox[id];renderInbox()}}}catch(e){}}
+function renderInbox(){
+var b=$('finbox');b.innerHTML='';var now=Date.now(),ids=Object.keys(inbox).filter(function(i){if(inbox[i].exp<=now){delete inbox[i];return false}return true});
+if(!ids.length)return;
+var h3=document.createElement('h3');h3.textContent='Fichas compartilhadas comigo';b.appendChild(h3);
+ids.forEach(function(id){var x=inbox[id],s=x.s,c=document.createElement('div');c.className='card';
+function row(t){var p=document.createElement('div');p.textContent=t;c.appendChild(p)}
+var hd=document.createElement('strong');hd.textContent='Ficha de '+x.from+' ('+fpFmt(x.fp)+') — restam '+mins(x.exp)+' min';c.appendChild(hd);
+row((s.name||'Sem nome')+(s.cls?' — '+s.cls:''));
+row('Nível: '+(s.lvl||'-')+'   PV: '+(s.hp||'-')+' / '+(s.hpm||'-'));
+row(s.attrs.map(function(a){return (a.l||'?')+' '+(a.v||'-')}).join('   '));
+if(s.notes){var n=document.createElement('div');n.className='pre';n.textContent=s.notes;c.appendChild(n)}
+if(s.inv){var iv=document.createElement('div');iv.className='pre';iv.textContent='Inventário:\n'+s.inv;c.appendChild(iv)}
+var cl=document.createElement('button');cl.className='chip';cl.style.marginTop='8px';cl.textContent='Fechar';cl.onclick=function(){delete inbox[id];renderInbox()};c.appendChild(cl);
+b.appendChild(c)})}
+function saveShares(){try{localStorage.setItem('dado-shares',JSON.stringify(shares))}catch(e){}}
+function renderShares(){
+var b=$('fshares');b.innerHTML='';var now=Date.now();shares=shares.filter(function(x){return x.exp>now});
+shares.forEach(function(x){var c=document.createElement('div');c.className='card';var t=document.createElement('span');t.textContent='Compartilhando "'+(x.name||'ficha')+'" com '+x.toName+' — restam '+mins(x.exp)+' min ';
+var bt=document.createElement('button');bt.className='chip';bt.textContent='Parar';bt.onclick=function(){stopShare(x)};c.appendChild(t);c.appendChild(bt);b.appendChild(c)});saveShares()}
+async function stopShare(x){
+try{await keyReady;var sl=await seal(x.pk,new TextEncoder().encode('revoke:'+x.sid));await post({k:'revoke',id:x.sid,to:x.toFp,spk:me.pub,iv:sl.iv,ct:sl.ct})}catch(e){note('Não consegui avisar a pessoa agora, mas a ficha some sozinha quando o tempo acabar.')}
+shares=shares.filter(function(y){return y!==x});renderShares()}
+async function shareSheet(sh,toFp,min){
+await keyReady;
+if(!me.priv){note('Este navegador não suporta o compartilhamento seguro de fichas.');return}
+if(!joined){note('Entre numa sala para compartilhar.');return}
+var peer=keys[toFp];if(!peer){note('Pessoa não encontrada. Ela precisa estar na sala.');return}
+var sid=rid(),exp=Date.now()+min*60000;
+var plain=JSON.stringify({sid:sid,exp:exp,s:{name:sh.name,cls:sh.cls,lvl:sh.lvl,hp:sh.hp,hpm:sh.hpm,attrs:sh.attrs,notes:sh.notes,inv:sh.inv}});
+var data=new TextEncoder().encode(plain),z=0;
+if(typeof CompressionStream!=='undefined'){try{data=await gz(plain);z=1}catch(e){data=new TextEncoder().encode(plain);z=0}}
+var sl=await seal(peer.pk,data);
+var msg={k:'sheet',id:sid,to:toFp,spk:me.pub,n:nick||'Eu',z:z,iv:sl.iv,ct:sl.ct};
+if(JSON.stringify(msg).length>3900){note('Ficha grande demais para compartilhar. Encurte as anotações ou o inventário.');return}
+try{await post(msg)}catch(e){note('Não consegui compartilhar. Tente de novo.');return}
+shares.push({sid:sid,toFp:toFp,toName:peer.n,pk:peer.pk,exp:exp,name:sh.name});renderShares();
+note('Ficha compartilhada com '+peer.n+' por '+min+' minutos.')}
+function loadSheets(){try{sheets=JSON.parse(localStorage.getItem('dado-sheets')||'[]')||[]}catch(e){sheets=[]}
+sheets=sheets.map(function(x){var c=cleanSheet(x);if(!c.id)c.id=rid();return c}).slice(0,20)}
+function saveSheets(){try{localStorage.setItem('dado-sheets',JSON.stringify(sheets))}catch(e){}}
+function curSheet(){for(var i=0;i<sheets.length;i++)if(sheets[i].id===cur)return sheets[i];return null}
+function renderFSel(){var sl=$('fsel');sl.innerHTML='';
+sheets.forEach(function(x){var o=document.createElement('option');o.value=x.id;o.textContent=x.name||'Sem nome';sl.appendChild(o)});
+if(!curSheet()&&sheets.length)cur=sheets[0].id;sl.value=cur;renderForm()}
+function renderForm(){
+var x=curSheet();$('fform').style.display=x?'block':'none';if(!x)return;
+$('f_name').value=x.name;$('f_cls').value=x.cls;$('f_lvl').value=x.lvl;$('f_hp').value=x.hp;$('f_hpm').value=x.hpm;$('f_notes').value=x.notes;$('f_inv').value=x.inv;
+var box=$('f_attrs');box.innerHTML='';
+x.attrs.forEach(function(a,i){var w=document.createElement('div');w.className='arow';
+var l=document.createElement('input');l.value=a.l;l.maxLength=8;l.setAttribute('aria-label','Nome do atributo '+(i+1));l.oninput=function(){a.l=strip(l.value).slice(0,8);saveSheets()};
+var v=document.createElement('input');v.value=a.v;v.maxLength=8;v.setAttribute('aria-label','Valor do atributo '+(i+1));v.oninput=function(){a.v=strip(v.value).slice(0,8);saveSheets()};
+w.appendChild(l);w.appendChild(v);box.appendChild(w)})}
+[['f_name','name',40],['f_cls','cls',40],['f_lvl','lvl',10],['f_hp','hp',10],['f_hpm','hpm',10]].forEach(function(f){
+$(f[0]).oninput=function(){var x=curSheet();if(!x)return;x[f[1]]=strip(this.value).slice(0,f[2]);saveSheets();if(f[1]==='name'){var o=$('fsel').selectedOptions[0];if(o)o.textContent=x.name||'Sem nome'}}});
+[['f_notes','notes'],['f_inv','inv']].forEach(function(f){$(f[0]).oninput=function(){var x=curSheet();if(!x)return;x[f[1]]=stripT(this.value).slice(0,1500);saveSheets()}});
+$('fsel').onchange=function(){cur=this.value;renderForm()};
+$('fnew').onclick=function(){if(sheets.length>=20)return;var x=cleanSheet({id:rid(),name:'Novo personagem'});sheets.push(x);cur=x.id;saveSheets();renderFSel()};
+$('fdel').onclick=function(){var x=curSheet();if(!x)return;if(!confirm('Excluir a ficha "'+(x.name||'sem nome')+'" deste aparelho?'))return;sheets=sheets.filter(function(y){return y!==x});cur='';saveSheets();renderFSel()};
+$('fshare').onclick=async function(){var x=curSheet(),to=$('fto').value,btn=this;if(!x)return;if(!to){note('Escolha uma pessoa da sala. Ela aparece depois de entrar na sala.');return}
+btn.disabled=true;try{await shareSheet(x,to,+$('fdur').value)}catch(e){note('Não consegui compartilhar.')}btn.disabled=false};
+try{shares=(JSON.parse(localStorage.getItem('dado-shares')||'[]')||[]).filter(function(x){return x&&x.exp>Date.now()&&typeof x.pk==='string'}).slice(0,20)}catch(e){shares=[]}
+function pick(o,ks){for(var i=0;i<ks.length;i++){if(o[ks[i]]!=null)return o[ks[i]]}return ''}
+function sheetFromObj(o,fb){
+if(!o||typeof o!=='object')return null;
+var at=[],ra=pick(o,['attrs','atributos']);
+if(Array.isArray(ra)){at=ra.slice(0,6).map(function(a){return a&&typeof a==='object'?{l:a.l!=null?a.l:a.nome,v:a.v!=null?a.v:a.valor}:{l:null,v:a}})}
+else if(ra&&typeof ra==='object'){at=Object.keys(ra).slice(0,6).map(function(k){return{l:k,v:ra[k]}})}
+return cleanSheet({id:rid(),name:pick(o,['name','nome'])||fb||'Ficha importada',cls:pick(o,['cls','classe']),lvl:pick(o,['lvl','nivel','nível','level']),hp:pick(o,['hp','pv']),hpm:pick(o,['hpm','pvmax','pv_max','hpmax']),attrs:at,notes:pick(o,['notes','notas','anotacoes','anotações']),inv:pick(o,['inv','inventario','inventário'])})}
+$('fimp').onclick=function(){$('ffile').click()};
+$('ffile').onchange=function(){
+var f=this.files&&this.files[0],inp=this;if(!f)return;
+if(f.size>200000){note('Arquivo grande demais (máximo 200 KB).');inp.value='';return}
+var r=new FileReader();
+r.onload=function(){
+var txt=String(r.result||''),list=[],base=strip(f.name.replace(/\.[^.]+$/,'')).slice(0,40),isTxt=false;
+try{
+if(/\.json$/i.test(f.name)||/^\s*[\[{]/.test(txt)){var j=JSON.parse(txt);var arr=Array.isArray(j)?j:(j&&Array.isArray(j.fichas)?j.fichas:[j]);arr.slice(0,20).forEach(function(o){var x=sheetFromObj(o,base);if(x)list.push(x)})}
+else{isTxt=true;list.push(cleanSheet({id:rid(),name:base||'Ficha importada',notes:txt}))}
+}catch(e){note('Não consegui ler esse arquivo. Use o modelo em JSON ou um arquivo .txt.');inp.value='';return}
+if(!list.length){note('O arquivo não tem nenhuma ficha.');inp.value='';return}
+var added=0;list.slice(0,Math.max(0,20-sheets.length)).forEach(function(x){sheets.push(x);cur=x.id;added++});
+saveSheets();renderFSel();
+note(added?('Importada(s): '+added+' ficha(s).'+(isTxt&&txt.length>1500?' O texto foi cortado em 1500 caracteres.':'')):'Você já tem 20 fichas. Exclua uma antes de importar.');
+inp.value=''};
+r.onerror=function(){note('Não consegui abrir o arquivo.')};
+r.readAsText(f)};
+$('fexp').onclick=function(){
+var x=curSheet();if(!x){note('Escolha uma ficha para exportar.');return}
+var o={nome:x.name,classe:x.cls,nivel:x.lvl,pv:x.hp,pvmax:x.hpm,atributos:x.attrs,anotacoes:x.notes,inventario:x.inv};
+var url=URL.createObjectURL(new Blob([JSON.stringify(o,null,2)],{type:'application/json'}));
+var a=document.createElement('a');a.href=url;a.download='ficha-'+(x.name||'personagem').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,30)+'.json';
+document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url)},2000)};
+setInterval(function(){renderInbox();renderShares()},30000);
+loadSheets();renderFSel();renderShares();
 build();preview();renderFeed();renderAs();note('Crie ou digite um código de sala. Quem souber o código entra na sala.');
 </script>
 </body>
